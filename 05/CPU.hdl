@@ -1,0 +1,89 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/5/CPU.hdl
+/**
+ * The Hack Central Processing unit (CPU).
+ * Parses the binary code in the instruction input and executes it according to the
+ * Hack machine language specification. In the case of a C-instruction, computes the
+ * function specified by the instruction. If the instruction specifies to read a memory
+ * value, the inM input is expected to contain this value. If the instruction specifies
+ * to write a value to the memory, sets the outM output to this value, sets the addressM
+ * output to the target address, and asserts the writeM output (when writeM = 0, any
+ * value may appear in outM).
+ * If the reset input is 0, computes the address of the next instruction and sets the
+ * pc output to that value. If the reset input is 1, sets pc to 0.
+ * Note: The outM and writeM outputs are combinational: they are affected by the
+ * instruction's execution during the current cycle. The addressM and pc outputs are
+ * clocked: although they are affected by the instruction's execution, they commit to
+ * their new values only in the next cycle.
+ */
+CHIP CPU {
+
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+
+    // Decode
+    Not(in=instruction[15], out=AInstruction);
+    Not(in=AInstruction, out=CInstruction);
+    Not(in=instruction[12], out=useRegA);
+
+    Mux16(a=instruction[0..15], b=AluOut, sel=CInstruction, out=ARegIn);
+    DMux8Way(in=CInstruction, sel=instruction[3..5], a=destNULL, b=destM, c=destD, d=destMD, e=destA, f=destAM, g=destAD, h=destAMD);
+    DMux8Way(in=CInstruction, sel=instruction[0..2], a=jmpNO, b=jmpGT, c=jmpEQ , d=jmpGE, e=jmpLT, f=jmpNE, g=jmpLE, h=jmp);
+
+    // Connect register A
+    Or(a=destA, b=destAD, out=loadA1);
+    Or(a=destAM, b=destAMD, out=loadA2);
+    Or(a=loadA1, b=loadA2, out=loadA3);
+    Or(a=loadA3, b=AInstruction, out=loadA);
+    ARegister(in=ARegIn, load=loadA, out=ARegOut);
+
+    // Connect Register D
+    Or(a=destD, b=destAD, out=loadD1);
+    Or(a=destMD, b=destAMD, out=loadD2);
+    Or(a=loadD1, b=loadD2, out=loadD);
+    DRegister(in=AluOut, load=loadD, out=DRegOut);
+
+    // Setup wires for M
+    Or(a=destM, b=destMD, out=loadM1);
+    Or(a=destAM, b=destAMD, out=loadM2);
+    Or(a=loadM1, b=loadM2, out=writeM);
+    Or16(a=ARegOut, b=false, out[0..14]=addressM);
+    Or16(a=AluOut, b=false, out=outM);
+
+    // Setup PC
+    // First create all conditions to check for jumps
+    Not(in=isZero, out=notZero);
+    Not(in=isNeg, out=notNeg);
+    And(a=notZero, b=notNeg, out=isPos);
+    Not(in=isPos, out=notPos);
+    // Now check if condition for jump is met
+    And(a=isPos,   b=jmpGT, out=loadPC0);
+    And(a=isZero,  b=jmpEQ, out=loadPC1);
+    And(a=notNeg,  b=jmpGE, out=loadPC2);
+    And(a=isNeg,   b=jmpLT, out=loadPC3);
+    And(a=notZero, b=jmpNE, out=loadPC4);
+    And(a=notPos,  b=jmpLE, out=loadPC5);
+    Or(a=loadPC0, b=loadPC1, out=loadPC6);
+    Or(a=loadPC2, b=loadPC3, out=loadPC7);
+    Or(a=loadPC4, b=loadPC5, out=loadPC8);
+    Or(a=loadPC6, b=loadPC7, out=loadPC9);
+    Or(a=loadPC8, b=loadPC9, out=loadPC10);
+    Or(a=loadPC10, b=jmp, out=loadPC);
+    PC(in=ARegOut, load=loadPC, inc=true, reset=reset, out[0..14]=pc);
+
+    // Wire up ALU    
+    Mux16(a=inM, b=ARegOut, sel=useRegA, out=AmuxM);
+    ALU(x=DRegOut, y=AmuxM, zx=instruction[11], nx=instruction[10] , zy=instruction[9] , ny=instruction[8] , f= instruction[7], no=instruction[6] , out=AluOut, zr=isZero, ng=isNeg);
+}
