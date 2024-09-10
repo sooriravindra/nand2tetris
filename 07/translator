@@ -1,0 +1,4 @@
+#! /bin/bash
+# This file used to test programs. Usage example: $ ./translator SimpleAdd  # NOTE No / at end of directory name
+file $1/$1.asm && rm $1/$1.asm
+python3 translator.py $1/$1.vm && cat $1/$1.asm | pbcopy
