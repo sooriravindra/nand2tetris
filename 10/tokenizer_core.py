@@ -2,6 +2,7 @@ class JackTokenizer(object):
     def __init__(self, filename):
         self.filename = filename
         self.f = open(filename, 'r')
+        self.readbuffer = ''
         self.currType = None
         self.currRepr = ''
         self.over = False
@@ -13,11 +14,22 @@ class JackTokenizer(object):
                     'null' ,'this', 'let', 'do', 'if', 'else', 'while' ,'return']
 
 
+    def __readchar(self):
+        c = self.f.read(1)
+        self.readbuffer += c
+        return c
+
+    def getErrorLine(self):
+        i = self.readbuffer.rfind('\n')
+        if i == -1:
+            return self.readbuffer
+        return self.readbuffer[i:]
+
     def eat(self):
         if not self.lastReadChar:
             return
         while self.lastReadChar in self.whitespace:
-            self.lastReadChar = self.f.read(1)
+            self.lastReadChar = self.__readchar()
             if not self.lastReadChar:
                 return
 
@@ -28,7 +40,7 @@ class JackTokenizer(object):
         queue = 'A'*len(end)
         c = True
         while c and queue != end:
-            c = self.f.read(1)
+            c = self.__readchar()
             queue += c
             queue = queue[1:]
 
@@ -98,7 +110,7 @@ class JackTokenizer(object):
             if self.lastReadChar and (self.currRepr != '' or self.lastReadChar not in self.whitespace):
                 self.currRepr += self.lastReadChar
 
-            self.lastReadChar = self.f.read(1)
+            self.lastReadChar = self.__readchar()
             if not self.lastReadChar:
                 self.over = True
                 return

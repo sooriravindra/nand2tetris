@@ -19,10 +19,10 @@ class CompilationEngine:
         tokenR = self.tokenizer.tokenRepr()
 
         if  expected_type and expected_type != tokenT:
-            raise SyntaxError('Expected ' + expected_type + ', but got ' + tokenT + '. ' + tokenR)
+            raise SyntaxError('Expected ' + expected_type + ', but got ' + tokenT + '. ' + tokenR + '\n' + self.tokenizer.getErrorLine())
 
         if  expected_repr and expected_repr != tokenR:
-            raise SyntaxError('Expected ' + expected_repr + ', but got ' + tokenR)
+            raise SyntaxError('Expected ' + expected_repr + ', but got ' + tokenR + '. ' + tokenR + '\n' + self.tokenizer.getErrorLine())
 
     def process(self, expected_type = None, expected_repr = None):
         tokenT = self.tokenizer.tokenType()
@@ -38,19 +38,24 @@ class CompilationEngine:
             return False
         return True
 
+    def peekType(self):
+        isType = self.peek('keyword', 'int')
+        isType = isType or self.peek('keyword', 'char')
+        isType = isType or self.peek('keyword', 'boolean')
+        isType = isType or self.peek('identifier')
+        return isType
+
     def processType(self):
-        if self.peek('keyword', 'int') or self.peek('keyword', 'char') or self.peek('keyword', 'boolean'):
+        if self.peekType():
             self.process()
-            return
-        self.process('identifier')
 
     def peekOp(self):
         ops = ['+', '-', '*', '/', '&', '|', '<', '=', '>']
 
-        if not self.hasMoreTokens():
+        if not self.tokenizer.hasMoreTokens():
             raise SyntaxError('Ran out of tokens!')
 
-        if self.tokenizer.tokenType() != 'symbol' and self.tokenizer.tokenRepr() in ops:
+        if self.tokenizer.tokenType() == 'symbol' and self.tokenizer.tokenRepr() in ops:
             return True
         return False
 
@@ -105,7 +110,7 @@ class CompilationEngine:
     def compileParameterList(self):
         self.begin('parameterList')
 
-        if self.peek('keyword', 'int') or self.peek('keyword', 'char') or self.peek('keyword', 'boolean'):
+        if self.peekType():
             self.process()
             self.process('identifier')
 
@@ -221,21 +226,67 @@ class CompilationEngine:
         self.end('returnStatement')
 
     def compileExpression(self):
-        # TODO implement expression
         self.begin('expression')
         self.compileTerm()
+        while self.peekOp():
+            self.process()
+            self.compileTerm()
         self.end('expression')
 
     def compileTerm(self):
-        # TODO implement term
         self.begin('term')
-        self.process()
+        isConst = self.peek('integerConstant')
+        isConst = isConst or self.peek('stringConstant')
+        isConst = isConst or self.peek('keyword', 'null')
+        isConst = isConst or self.peek('keyword', 'this')
+        isConst = isConst or self.peek('keyword', 'true')
+        isConst = isConst or self.peek('keyword', 'false')
+
+        if isConst:
+            self.process()
+        elif self.peek('symbol', '-') or self.peek('symbol', '~'):
+            self.process()
+            self.compileTerm()
+        elif self.peek('symbol', '('):
+            self.process()
+            self.compileExpression()
+            self.process('symbol', ')')
+        elif self.peek('identifier'):
+            self.process()
+
+            # TODO : Do we need more careful consideration, like so:
+            # varName = self.tokenizer.tokenRepr()
+            # assert(self.tokenizer.hasMoreTokens()) # Can't end in a term
+            # self.advance()
+
+            if self.peek('symbol', '['):
+                # somearray[expr]
+                self.process()
+                self.compileExpression()
+                self.process('symbol', ']')
+            elif self.peek('symbol', '.'):
+                # some.func(expr..)
+                self.process()
+                self.process('identifier')
+                self.process('symbol', '(')
+                self.compileExpressionList()
+                self.process('symbol', ')')
+            elif self.peek('symbol', '('):
+                # somfunc(expr..)
+                self.process()
+                self.compileExpressionList()
+                self.process('symbol', ')')
+        else:
+            raise SyntaxError('Invalid term: ' + self.tokenizer.tokenRepr() + '\n' + self.token.getErrorLine())
+
         self.end('term')
 
     def compileExpressionList(self):
         self.begin('expressionList')
-        # TODO revisit below condition
-        if not self.peek('symbol'):
+        # We rely on the fact that expression list is empty only if
+        # next token is a ')' symbol. This is because expression lists
+        # are used only in case of subroutineCalls
+        if not self.peek('symbol', ')'):
             self.compileExpression()
             while self.peek('symbol', ','):
                 self.process()
