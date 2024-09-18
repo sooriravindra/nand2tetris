@@ -56,7 +56,7 @@ class Screen {
         let mask = 1;
         let bit = x - (xby16 * 16);
         while (bit > 0) {
-            let mask = mask * 2;
+            let mask = mask + mask; // Essentially left shift
             let bit = bit - 1;
         }
 
