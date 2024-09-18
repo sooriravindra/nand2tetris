@@ -1,0 +1,135 @@
+class ClackGame {
+	field int score;
+	field int randomseed;
+	field int clackRow;
+	field int clackCol;
+	field boolean gameOver;
+	field int frameNumber;
+	field int bell;
+
+	constructor ClackGame new() {
+		let score = 0;
+		let randomseed = 0;
+		let clackRow = 11;
+		let clackCol = 22;
+		let gameOver = false;
+		let frameNumber = 0;
+		let bell = 100;
+		return this;
+	}
+
+	method void dispose() {
+		do Memory.deAlloc(this);
+		return;
+	}
+
+	method void beginGame() {
+		var char key;
+		do Screen.clearScreen();
+		do drawKey(62); // >
+		do drawKey(67); // C
+		do drawKey(76); // L
+		do drawKey(65); // A
+		do drawKey(67); // C
+		do drawKey(75); // K
+		do drawKey(60); // <
+		do Output.moveCursor(20,20);
+		do Output.printString("Press any key to begin...");
+		let key = 0;
+		while (key = 0) {
+			let key = Keyboard.keyPressed();
+			let randomseed = randomseed + 1;
+		}
+		return;
+
+	}
+
+	method LetterList updateScene(LetterList letters) {
+		var LetterList new_letter;
+		var int temp;
+		let new_letter = LetterList.new(letters);
+		do Screen.clearScreen();
+		do new_letter.draw();
+		let gameOver = new_letter.advance();
+		let temp = frameNumber - Math.multiply(Math.divide(frameNumber,10),10);
+		if (temp = 0) {
+			if (bell > 1) {
+				let bell = bell - 1;
+			}
+		}
+		let frameNumber = frameNumber + 1;
+		return new_letter;
+	}
+
+	method void playGame() {
+		var LetterList letters;
+	  var char key;
+		var int timer;
+		var int old_length;
+		do Random.setSeed(randomseed);
+		let letters = null;
+		let timer = 0;
+
+		while (true) {
+
+			while (key = 0) {
+				let timer = timer + 1;
+				let key = Keyboard.keyPressed();
+				if (timer > bell) {
+					let letters = updateScene(letters);
+					let timer = 0;
+					if (gameOver) {
+						return;
+					}
+				}
+				do Sys.wait(3);
+			}
+
+			if (~(letters = null)) {
+			  let old_length = letters.length();
+				let letters = letters.sweep(key);
+				let score = score + (old_length - letters.length());
+			}
+
+			// waits for the key to be released
+			while (~(key = 0)) {
+				let timer = timer + 1;
+				let key = Keyboard.keyPressed();
+				if (timer > bell) {
+					let letters = updateScene(letters);
+					let timer = 0;
+					if (gameOver) {
+						return;
+					}
+				}
+				do Sys.wait(3);
+			}
+		}
+		return;
+	}
+
+	method void endGame() {
+	  var int display_score;
+		let display_score = Math.multiply(score, 10); // Make score have nice 0 at the end
+		do Screen.clearScreen();
+		do Output.moveCursor(12,18);
+		do Output.printString("Here is your score : ");
+		do Output.printInt(display_score);
+		return;
+	}
+
+	method void drawKey(char c ) {
+		do Screen.setColor(false);
+		do Output.moveCursor(clackRow, clackCol);
+		do Output.printChar(c);
+		let clackCol = clackCol + 3; 
+		return;
+	}
+
+	method void run() {
+		do beginGame();
+		do playGame();
+		do endGame();
+		return;
+	}
+}

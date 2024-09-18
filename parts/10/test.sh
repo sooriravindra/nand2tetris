@@ -5,5 +5,5 @@ for jackfile in $(find . -name "*jack" -type f); do
   prsfile="${filename%.jack}.prs"
 
   ./analyzer.py $jackfile
-  ../tools/TextComparer.sh "${xmlfile}" "${prsfile}"
+  ../../tools/TextComparer.sh "${xmlfile}" "${prsfile}"
 done

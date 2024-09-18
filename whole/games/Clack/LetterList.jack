@@ -1,0 +1,65 @@
+class LetterList {
+	field char letter;
+  field int row;
+  field int col;
+  field LetterList next;
+
+  constructor LetterList new(LetterList nextLetter) {
+    let letter = 65 + Random.randRange(25);  
+    let row = 0;
+    let col = Random.randRange(63);
+    let next = nextLetter;
+    return this;
+  }
+
+  method void dispose() {
+    if (~(next = null)) {
+      do next.dispose();
+    }
+    do Memory.deAlloc(this);
+    return;
+  }
+
+  method boolean advance() {
+    var boolean fail;
+    let fail = false;
+    let row = row + 1;
+    if (~(next = null)) {
+      let fail = next.advance();
+    }
+    if (row > 22) {
+      return true;
+    }
+    return fail;
+  }
+
+  method void draw() {
+    do Output.moveCursor(row, col);
+    do Output.printChar(letter);
+    if (~(next = null)) {
+      do next.draw();
+    }
+    return;
+  }
+
+  method LetterList sweep(char key) {
+    if (~(next = null)) {
+      let next = next.sweep(key);
+    }
+    if (key = letter) {
+      // get rid of curr
+      do Memory.deAlloc(this);
+      return next;
+    }
+    return this;
+  }
+
+  method int length() {
+    var int ret;
+    let ret = 1;
+    if (~(next = null)) {
+      let ret = ret + next.length();
+    }
+    return ret;
+  }
+}
