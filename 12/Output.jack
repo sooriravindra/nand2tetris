@@ -17,17 +17,22 @@ class Output {
 
     // Character map for displaying characters
     static Array charMaps; 
+    static int cRow, cCol;
 
     /** Initializes the screen, and locates the cursor at the screen's top-left. */
     function void init() {
+        do Output.initMap();
+        let cCol = 0;
+        let cRow = 0;
+        return;
     }
 
     // Initializes the character map array
     function void initMap() {
         var int i;
-    
+
         let charMaps = Array.new(127);
-        
+
         // Black square, used for displaying non-printable characters.
         do Output.create(0,63,63,63,63,63,63,63,63,63,0,0);
 
@@ -50,7 +55,7 @@ class Output {
         do Output.create(45,0,0,0,0,0,63,0,0,0,0,0);         // -
         do Output.create(46,0,0,0,0,0,0,0,12,12,0,0);        // .    
         do Output.create(47,0,0,32,48,24,12,6,3,1,0,0);      // /
-        
+
         do Output.create(48,12,30,51,51,51,51,51,30,12,0,0); // 0
         do Output.create(49,12,14,15,12,12,12,12,12,63,0,0); // 1
         do Output.create(50,30,51,48,24,12,6,3,51,63,0,0);   // 2
@@ -61,7 +66,7 @@ class Output {
         do Output.create(55,63,49,48,48,24,12,12,12,12,0,0); // 7
         do Output.create(56,30,51,51,51,30,51,51,51,30,0,0); // 8
         do Output.create(57,30,51,51,51,62,48,48,24,14,0,0); // 9
-        
+
         do Output.create(58,0,0,12,12,0,0,12,12,0,0,0);      // :
         do Output.create(59,0,0,12,12,0,0,12,12,6,0,0);      // ;
         do Output.create(60,0,0,24,12,6,3,6,12,24,0,0);      // <
@@ -70,7 +75,7 @@ class Output {
         do Output.create(64,30,51,51,59,59,59,27,3,30,0,0);  // @
         do Output.create(63,30,51,51,24,12,12,0,12,12,0,0);  // ?
 
-        do Output.create(65,0,0,0,0,0,0,0,0,0,0,0);          // A ** TO BE FILLED **
+        do Output.create(65,30,51,51,51,63,51,51,51,51,0,0); // A
         do Output.create(66,31,51,51,51,31,51,51,51,31,0,0); // B
         do Output.create(67,28,54,35,3,3,3,35,54,28,0,0);    // C
         do Output.create(68,15,27,51,51,51,51,51,27,15,0,0); // D
@@ -130,21 +135,21 @@ class Output {
         do Output.create(120,0,0,0,51,30,12,12,30,51,0,0);     // x
         do Output.create(121,0,0,0,51,51,51,62,48,24,15,0);    // y
         do Output.create(122,0,0,0,63,27,12,6,51,63,0,0);      // z
-        
+
         do Output.create(123,56,12,12,12,7,12,12,12,56,0,0);   // {
         do Output.create(124,12,12,12,12,12,12,12,12,12,0,0);  // |
         do Output.create(125,7,12,12,12,56,12,12,12,7,0,0);    // }
         do Output.create(126,38,45,25,0,0,0,0,0,0,0,0);        // ~
 
-	return;
+        return;
     }
 
     // Creates the character map array of the given character index, using the given values.
     function void create(int index, int a, int b, int c, int d, int e,
                          int f, int g, int h, int i, int j, int k) {
-	var Array map;
+        var Array map;
 
-	let map = Array.new(11);
+        let map = Array.new(11);
         let charMaps[index] = map;
 
         let map[0] = a;
@@ -175,28 +180,86 @@ class Output {
     /** Moves the cursor to the j-th column of the i-th row,
      *  and erases the character displayed there. */
     function void moveCursor(int i, int j) {
+        let cRow = i;
+        let cCol = j;
+        return;
     }
 
     /** Displays the given character at the cursor location,
      *  and advances the cursor one column forward. */
     function void printChar(char c) {
+        var int x, y, mask, tx, ty, map, ox, oy;
+        let ox = cCol * 8;
+        let oy = cRow * 11;
+        let y = 0;
+        let map = Output.getMap(c);
+        // TODO Do I need this?
+        do Screen.setColor(false);
+        do Screen.drawRectangle(ox, oy, ox + 7, oy + 10);
+        do Screen.setColor(true);
+        while (y < 11) {
+            let x = 0;
+            let mask = 1;
+            while (x < 8) {
+                if (mask & map[y]) {
+                    do Screen.drawPixel((ox + x), (oy +y));
+                } 
+                let mask = mask + mask;
+                let x = x + 1;
+            }
+            let y = y + 1;
+        }
+        let cCol = cCol + 1;
+        if (cCol = 64) {
+            let cRow = cRow + 1;
+            let cCol = 0;
+        }
+        if (cRow > 22) {
+            let cRow = 0;
+        }
+        return;
     }
 
     /** displays the given string starting at the cursor location,
      *  and advances the cursor appropriately. */
     function void printString(String s) {
+        var int len, i;
+        let len = s.length();
+        let i = 0;
+        while (i < len) {
+            do Output.printChar(s.charAt(i));
+            let i = i + 1;
+        }
+        return;
     }
 
     /** Displays the given integer starting at the cursor location,
      *  and advances the cursor appropriately. */
     function void printInt(int i) {
+        var String s;
+        let s = String.new(6);
+        do s.setInt(i);
+        do Output.printString(s);
+        return;
     }
 
     /** Advances the cursor to the beginning of the next line. */
     function void println() {
+        let cRow = cRow + 1;
+        let cCol = 0;
+        return;
     }
 
     /** Moves the cursor one column back. */
     function void backSpace() {
+        let cCol = cCol - 1;
+        if (cCol < 0) {
+            let cCol = 63;
+            let cRow = cRow - 1;
+            if (cRow < 0) {
+                let cRow = cRow + 23;
+            }
+        }
+        return;
     }
 }

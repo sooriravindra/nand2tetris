@@ -56,3 +56,10 @@ cp Keyboard.jack KeyboardTest
 ../tools/JackCompiler.sh KeyboardTest && echo "Load the KeyboardTest directory in VMEmulator"
 rm KeyboardTest/Keyboard.jack
 echo
+
+echo " > Begin Output test <"
+cp ../tools/OS/*vm OutputTest/
+cp Output.jack OutputTest
+../tools/JackCompiler.sh OutputTest && echo "Load the OutputTest directory in VMEmulator"
+rm OutputTest/Output.jack
+echo
