@@ -43,15 +43,19 @@ class LetterList {
   }
 
   method LetterList sweep(char key) {
+    var LetterList updatedNext;
+    let updatedNext = null;
     if (~(next = null)) {
-      let next = next.sweep(key);
+      let updatedNext = next.sweep(key);
     }
     if (key = letter) {
       // get rid of curr
       do Memory.deAlloc(this);
-      return next;
+      return updatedNext;
+    } else {
+      let next = updatedNext;
+      return this;
     }
-    return this;
   }
 
   method int length() {

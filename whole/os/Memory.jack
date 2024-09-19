@@ -44,7 +44,7 @@ class Memory {
         let prev = 0;
 
         while (~(curr = 0)) {
-            if (curr[0] > (size + 1)) { // >= size + 2
+            if (curr[0] > (size + 4)) { // >= size + 4
                 if ((curr[0] - (size + 1)) > 1) {
                     // Split
                     let ret = curr +  2;
@@ -58,7 +58,7 @@ class Memory {
                         let freelist[0] = Memory.peek(ret - 2) - (size + 2);
                         let freelist[1] = Memory.peek(ret - 1);
                     }
-                    let ret[0] = size + 2;
+                    do Memory.poke((ret - 2), (size + 2));
                     return ret;
                 } else {
                     // return the current freelist in entirety

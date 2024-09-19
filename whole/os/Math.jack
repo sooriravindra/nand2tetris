@@ -38,7 +38,7 @@ class Math {
         let   i = 0;
         let xshifted = x;
         while ( i < n) {
-            let iy = y & powersOfTwo[i];
+            let iy = ~((y & powersOfTwo[i]) = 0);
 
             if (iy) {
                 let sum = sum + xshifted;
@@ -53,6 +53,10 @@ class Math {
     function int __div(int x, int y) {
         var int q, ret;
         if ((y > x) | (y < 0)) {
+            return 0;
+        }
+        if (y = 0) {
+            do Sys.error(101);
             return 0;
         }
         let q = Math.__div(x,(2*y));

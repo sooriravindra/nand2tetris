@@ -18,25 +18,22 @@ class Screen {
     function void init() {
         let scrn = 16384;
         let color = true;
-        /* do Screen.clearScreen(); */ 
         return;
     }
 
     /** Erases the entire screen. */
     function void clearScreen() {
-        var int row, col;
+        var int row, col, inc;
         let row = 0;
-        do Screen.setColor(~color);
-
         while (row < 256) {
             let col = 0;
-            while (col < 512) {
-                do Screen.drawPixel(col, row);  
+            let inc = 32 * row; 
+            while (col < 32) {
+                do Memory.poke((scrn + inc + col), (~color));
                 let col = col + 1;
             }
             let row = row + 1;
         }
-        do Screen.setColor(~color);
         return;
     }
 

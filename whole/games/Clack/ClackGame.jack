@@ -13,8 +13,8 @@ class ClackGame {
 		let clackRow = 11;
 		let clackCol = 22;
 		let gameOver = false;
-		let frameNumber = 0;
-		let bell = 100;
+		let frameNumber = 1;
+		let bell = 20;
 		return this;
 	}
 
@@ -40,22 +40,21 @@ class ClackGame {
 			let key = Keyboard.keyPressed();
 			let randomseed = randomseed + 1;
 		}
+		do Random.setSeed(randomseed);
 		return;
 
 	}
 
 	method LetterList updateScene(LetterList letters) {
 		var LetterList new_letter;
-		var int temp;
+		var int masked;
 		let new_letter = LetterList.new(letters);
 		do Screen.clearScreen();
 		do new_letter.draw();
 		let gameOver = new_letter.advance();
-		let temp = frameNumber - Math.multiply(Math.divide(frameNumber,10),10);
-		if (temp = 0) {
-			if (bell > 1) {
+		if ((10 = frameNumber) & (bell > 1)) {
 				let bell = bell - 1;
-			}
+				let frameNumber = 1;
 		}
 		let frameNumber = frameNumber + 1;
 		return new_letter;
@@ -66,7 +65,6 @@ class ClackGame {
 	  var char key;
 		var int timer;
 		var int old_length;
-		do Random.setSeed(randomseed);
 		let letters = null;
 		let timer = 0;
 
@@ -82,7 +80,7 @@ class ClackGame {
 						return;
 					}
 				}
-				do Sys.wait(3);
+				/* do Sys.wait(3); */
 			}
 
 			if (~(letters = null)) {
@@ -102,7 +100,7 @@ class ClackGame {
 						return;
 					}
 				}
-				do Sys.wait(3);
+				/* do Sys.wait(3); */
 			}
 		}
 		return;
