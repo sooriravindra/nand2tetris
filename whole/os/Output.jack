@@ -188,26 +188,26 @@ class Output {
     /** Displays the given character at the cursor location,
      *  and advances the cursor one column forward. */
     function void printChar(char c) {
-        var int x, y, mask, tx, ty, map, ox, oy;
-        let ox = cCol * 8;
-        let oy = cRow * 11;
+        var int x, y, mask, map, address, value;
         let y = 0;
         let map = Output.getMap(c);
-        // TODO Do I need this?
-        do Screen.setColor(false);
-        do Screen.drawRectangle(ox, oy, ox + 7, oy + 10);
-        do Screen.setColor(true);
+        let address = (cRow*352) + (cCol / 2);
         while (y < 11) {
-            let x = 0;
-            let mask = 1;
-            while (x < 8) {
-                if ((mask & map[y]) = mask) {
-                    do Screen.drawPixel((ox + x), (oy +y));
-                } 
-                let mask = mask + mask;
-                let x = x + 1;
+            let mask = map[y];
+            let value = Memory.peek((address + 16384));
+            if ((cCol & 1) = 0) { 
+                // even column. we need to set lower bits
+                let value = (value & (-256)); 
+                let value = value + mask;
+            } else {
+                // odd column. we need to set higher bits
+                let mask = mask * 256;
+                let value = (value & 255); 
+                let value = value + mask;
             }
+            do Memory.poke((address + 16384), value);
             let y = y + 1;
+            let address = address + 32;
         }
         let cCol = cCol + 1;
         if (cCol = 64) {

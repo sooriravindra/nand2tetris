@@ -34,6 +34,10 @@ class LetterList {
   }
 
   method void draw() {
+    if (~(row = 0)) {
+      do Output.moveCursor(row - 1, col);
+      do Output.printChar(32);
+    }
     do Output.moveCursor(row, col);
     do Output.printChar(letter);
     if (~(next = null)) {
@@ -49,7 +53,10 @@ class LetterList {
       let updatedNext = next.sweep(key);
     }
     if (key = letter) {
-      // get rid of curr
+      // get rid of the character from screen
+      do Output.moveCursor(row - 1, col);
+      do Output.printChar(32);
+      // free object
       do Memory.deAlloc(this);
       return updatedNext;
     } else {

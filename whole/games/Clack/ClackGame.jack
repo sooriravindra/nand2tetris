@@ -14,7 +14,7 @@ class ClackGame {
 		let clackCol = 22;
 		let gameOver = false;
 		let frameNumber = 1;
-		let bell = 20;
+		let bell = 300;
 		return this;
 	}
 
@@ -41,19 +41,18 @@ class ClackGame {
 			let randomseed = randomseed + 1;
 		}
 		do Random.setSeed(randomseed);
+		do Screen.clearScreen();
 		return;
-
 	}
 
 	method LetterList updateScene(LetterList letters) {
 		var LetterList new_letter;
 		var int masked;
 		let new_letter = LetterList.new(letters);
-		do Screen.clearScreen();
 		do new_letter.draw();
 		let gameOver = new_letter.advance();
 		if ((10 = frameNumber) & (bell > 1)) {
-				let bell = bell - 1;
+				let bell = bell - 25;
 				let frameNumber = 1;
 		}
 		let frameNumber = frameNumber + 1;
@@ -80,7 +79,7 @@ class ClackGame {
 						return;
 					}
 				}
-				/* do Sys.wait(3); */
+				do Sys.wait(3);
 			}
 
 			if (~(letters = null)) {
@@ -100,7 +99,7 @@ class ClackGame {
 						return;
 					}
 				}
-				/* do Sys.wait(3); */
+				do Sys.wait(3);
 			}
 		}
 		return;
@@ -117,7 +116,6 @@ class ClackGame {
 	}
 
 	method void drawKey(char c ) {
-		do Screen.setColor(false);
 		do Output.moveCursor(clackRow, clackCol);
 		do Output.printChar(c);
 		let clackCol = clackCol + 3; 
