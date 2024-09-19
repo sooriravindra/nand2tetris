@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 import sys
+import os
 from enum import Enum
 
 class CommandType(Enum):
@@ -17,10 +18,23 @@ class CodeWriter(object):
     def __init__(self, dest):
         self.f = open(dest, 'x')
         self.labelnum = -1
-        # self.f.write('@256\n')
-        # self.f.write('D=A\n')
-        # self.f.write('@SP\n')
-        # self.f.write('M=D\n')
+        self.currfile = '__Jack__'
+        self.currfunction = '__Jack__.__Jill__'
+        self.returnlabels = {}
+
+        # bootstrap code here
+        # NOTE: Comment it out for SimpleFunction, BasicLoop and FibonacciSeries tests
+        # SP <- 256
+        # call Sys.init
+        # NOTE: Using a goto instead of call works, but fails testcases since resulting stack is not identical
+        self.emit('@256')
+        self.emit('D=A')
+        self.emit('@SP')
+        self.emit('M=D')
+        self.writeCall('Sys.init', '0')
+
+    def setFileName(self, fname):
+        self.currfile = os.path.basename(fname)[:-3]
 
     def close(self):
         self.f.close()
@@ -49,14 +63,17 @@ class CodeWriter(object):
             asm += '@' + str(5 + int(offset)) + '\n'
             asm += 'D=M\n'
         elif segment == 'static':
-            var = 'TODO.' + offset
+            var = self.currfile + '.' + offset
             asm += '@' + var + '\n'
             asm += 'D=M\n'
         elif segment == 'constant':
-            asm += '@' + str(int(offset)) + '\n'
+            asm += '@' + offset + '\n'
             asm += 'D=A\n'
         elif segment == 'pointer':
-            asm += '@' + ('THIS' if not int(offset) else 'THAT') + '\n'
+            asm += '@' + ('THIS' if int(offset) == 0 else 'THAT') + '\n'
+            asm += 'D=M\n'
+        elif segment == 'internal':
+            asm += '@' + offset + '\n'
             asm += 'D=M\n'
         else:
             raise NotImplementedError(segment)
@@ -99,7 +116,7 @@ class CodeWriter(object):
             asm += 'D=M\n'
             asm += 'A=A-1\n'
             asm += 'D=M-D\n'
-            asm += '@__internal__.' + str(self.labelnum) + '.true\n'
+            asm += '@' + self.getLabel('cond' + str(self.labelnum)+ '.true') + '\n'
             if ins == 'eq':
                 asm += 'D;JEQ\n'
             elif ins == 'lt':
@@ -107,15 +124,15 @@ class CodeWriter(object):
             elif ins == 'gt':
                 asm += 'D;JGT\n'
             asm += 'D=0\n'
-            asm += '@__internal__.' + str(self.labelnum) + '.end\n'
+            asm += '@' + self.getLabel('cond' + str(self.labelnum)+ '.end') + '\n'
             asm += '0;JMP\n'
-            asm += '(__internal__.' + str(self.labelnum) + '.true)\n'
+            asm += '(' + self.getLabel('cond' + str(self.labelnum) + '.true') + ')\n'
             asm += 'D=-1\n'
-            asm += '(__internal__.' + str(self.labelnum) + '.end)\n'
+            asm += '(' + self.getLabel('cond' + str(self.labelnum) + '.end') + ')\n'
             asm += '@SP\n'
             asm += 'M=M-1\n'
             asm += 'A=M-1\n'
-            asm += 'M=D\n'
+            asm += 'M=D'
         else:
             raise NotImplementedError(ins)
         self.emit(asm)
@@ -140,6 +157,154 @@ class CodeWriter(object):
             asm += 'M=D'
         self.emit(asm)
 
+    def getLabel(self, label):
+        return self.currfunction + '$' + label
+
+    def writeLabel(self,label):
+        asm = '(' + self.getLabel(label) + ')'
+        self.emit(asm)
+
+    def writeGoto(self,label):
+        asm = '@'+ self.getLabel(label) + '\n'
+        asm += '0;JMP'
+        self.emit(asm)
+
+    def writeIf(self,label):
+        asm = '@SP\n'
+        asm += 'M=M-1\n'
+        asm += 'A=M\n'
+        asm += 'D=M\n'
+        asm += '@'+ self.getLabel(label) + '\n'
+        asm += 'D;JNE'
+        self.emit(asm)
+
+    def getFunctionEntry(self, fname):
+        # if fname == 'Sys.init':
+        #     return fname
+        # return self.currfile + '.' + fname
+        return fname
+
+    def writeFunction(self,fname, nvars):
+        self.currfunction = fname
+        self.emit('(' + self.getFunctionEntry(fname) + ')')
+        for i in range(int(nvars)):
+            self.writePushPop(CommandType.C_PUSH, 'constant', '0')
+
+
+    def getReturnLabel(self):
+        fname = self.currfunction
+        if fname in self.returnlabels:
+            self.returnlabels[fname] += 1
+        else:
+            self.returnlabels[fname] = 0
+        return fname + '$ret.'+ str(self.returnlabels[fname])
+
+    def writeCall(self,fname, nargs):
+        retlabel = self.getReturnLabel()
+        asm =''
+
+        # push return-label
+        self.writePushPop(CommandType.C_PUSH, 'constant', retlabel)
+
+        # push LCL
+        self.writePushPop(CommandType.C_PUSH, 'internal', '1')
+
+        # push ARG
+        self.writePushPop(CommandType.C_PUSH, 'internal', '2')
+
+        # push THIS
+        self.writePushPop(CommandType.C_PUSH, 'internal', '3')
+
+        # push THAT
+        self.writePushPop(CommandType.C_PUSH, 'internal', '4')
+
+        # ARG = SP - 5 - nargs
+        self.writePushPop(CommandType.C_PUSH, 'internal', '0')
+        self.writePushPop(CommandType.C_PUSH, 'constant', '5')
+        self.writePushPop(CommandType.C_PUSH, 'constant', nargs)
+        self.writeArithmetic('add')
+        self.writeArithmetic('sub')
+        self.writePushPop(CommandType.C_POP, 'internal', '2')
+
+        # LCL = SP
+        asm += '@SP\n'
+        asm += 'D=M\n'
+        asm += '@LCL\n'
+        asm += 'M=D\n'
+
+        # goto function
+        asm += '@'+ self.getFunctionEntry(fname) + '\n'
+        asm += '0;JMP\n'
+
+        # (return label)
+        asm += '(' + retlabel + ')'
+        self.emit(asm)
+
+    def writeReturn(self):
+        asm = ''
+
+        # return address = *(LCL-5) 
+        asm += '@LCL\n'
+        asm += 'A=M-1\n'
+        asm += 'A=A-1\n'
+        asm += 'A=A-1\n'
+        asm += 'A=A-1\n'
+        asm += 'A=A-1\n'
+        asm += 'D=M\n'
+        asm += '@R13\n' # Temp register
+        asm += 'M=D\n'
+        self.emit(asm)
+
+        # *ARG = pop()
+        self.writePushPop(CommandType.C_POP, 'argument', '0')
+
+        # SP = ARG + 1
+        asm = ''
+        asm += '@ARG\n'
+        asm += 'D=M+1\n'
+        asm += '@SP\n'
+        asm += 'M=D\n'
+
+        # end = LCL
+        # THAT = *(end - 1)
+        asm += '@LCL\n'
+        asm += 'A=M-1\n'
+        asm += 'D=M\n'
+        asm += '@THAT\n'
+        asm += 'M=D\n'
+
+        # THIS = *(end - 2)
+        asm += '@LCL\n'
+        asm += 'A=M-1\n'
+        asm += 'A=A-1\n'
+        asm += 'D=M\n'
+        asm += '@THIS\n'
+        asm += 'M=D\n'
+
+        # ARG = *(end - 3)
+        asm += '@LCL\n'
+        asm += 'A=M-1\n'
+        asm += 'A=A-1\n'
+        asm += 'A=A-1\n'
+        asm += 'D=M\n'
+        asm += '@ARG\n'
+        asm += 'M=D\n'
+
+        # LCL = *(end - 4)
+        asm += '@LCL\n'
+        asm += 'A=M-1\n'
+        asm += 'A=A-1\n'
+        asm += 'A=A-1\n'
+        asm += 'A=A-1\n'
+        asm += 'D=M\n'
+        asm += '@LCL\n'
+        asm += 'M=D\n'
+
+        # goto return address
+        asm += '@R13\n'
+        asm += 'A=M\n'
+        asm += '0;JMP'
+        self.emit(asm)
 
 class Parser(object):
     def __init__(self, source):
@@ -176,6 +341,18 @@ class Parser(object):
             return CommandType.C_POP
         elif self.words[0] in arithmetic:
             return CommandType.C_ARITHMETIC
+        elif self.words[0] == 'call':
+            return CommandType.C_CALL
+        elif self.words[0] == 'return':
+            return CommandType.C_RETURN
+        elif self.words[0] == 'function':
+            return CommandType.C_FUNCTION
+        elif self.words[0] == 'if-goto':
+            return CommandType.C_IF
+        elif self.words[0] == 'label':
+            return CommandType.C_LABEL
+        elif self.words[0] == 'goto':
+            return CommandType.C_GOTO
 
         raise NotImplementedError(self.words[0])
 
@@ -193,16 +370,46 @@ if len(sys.argv) != 2:
     exit(1)
 
 source = sys.argv[1]
-dest   = source[:-3] + '.asm'
-p      = Parser(source)
-cw     = CodeWriter(dest)
+sources = []
 
-while p.hasMoreLines():
-    p.advance()
-    cw.writeComment(p.currentCmd())
-    cmd = p.commandType()
-    if cmd == CommandType.C_ARITHMETIC:
-        cw.writeArithmetic(p.arg1())
-    else:
-        cw.writePushPop(cmd, p.arg1(), p.arg2())
+if source.endswith('.vm') and os.path.isfile(source):
+    sources = [source]
+    dest   = source[:-3] + '.asm'
+elif os.path.isdir(source):
+    sources = [ os.path.join(source,f) for f in os.listdir(source) if f.endswith('.vm')]
+    dest = source + '.asm'
+
+if len(sources) == 0:
+    print('Expected a directory with some .vm files or a .vm file')
+    exit(1)
+
+cw = CodeWriter(dest)
+
+for s in sources:
+    p = Parser(s)
+    cw.setFileName(s)
+
+    while p.hasMoreLines():
+        p.advance()
+        cw.writeComment(p.currentCmd())
+        cmd = p.commandType()
+        if cmd == CommandType.C_ARITHMETIC:
+            cw.writeArithmetic(p.arg1())
+        elif cmd == CommandType.C_PUSH or cmd == CommandType.C_POP:
+            cw.writePushPop(cmd, p.arg1(), p.arg2())
+        elif cmd == CommandType.C_LABEL:
+            cw.writeLabel(p.arg1())
+        elif cmd == CommandType.C_IF:
+            cw.writeIf(p.arg1())
+        elif cmd == CommandType.C_GOTO:
+            cw.writeGoto(p.arg1())
+        elif cmd == CommandType.C_FUNCTION:
+            cw.writeFunction(p.arg1(), p.arg2())
+        elif cmd == CommandType.C_RETURN:
+            cw.writeReturn()
+        elif cmd == CommandType.C_CALL:
+            cw.writeCall(p.arg1(),p.arg2())
+        else:
+            raise NotImplementedError(cmd)
+
 cw.close()
