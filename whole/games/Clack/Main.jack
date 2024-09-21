@@ -4,7 +4,6 @@ class Main {
         let game = ClackGame.new();
         do game.run();
         do game.dispose();
-        while (true) {} // To infinity and beyond
         return;
     }
 }

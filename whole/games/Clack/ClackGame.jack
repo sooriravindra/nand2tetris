@@ -6,6 +6,8 @@ class ClackGame {
 	field boolean gameOver;
 	field int frameNumber;
 	field int bell;
+	field LetterList letters;
+	field int timer;
 
 	constructor ClackGame new() {
 		let score = 0;
@@ -15,6 +17,7 @@ class ClackGame {
 		let gameOver = false;
 		let frameNumber = 1;
 		let bell = 300;
+		let letters = null;
 		return this;
 	}
 
@@ -45,38 +48,34 @@ class ClackGame {
 		return;
 	}
 
-	method LetterList updateScene(LetterList letters) {
-		var LetterList new_letter;
-		var int masked;
-		let new_letter = LetterList.new(letters);
-		do new_letter.draw();
-		let gameOver = new_letter.advance();
+	method void updateScene() {
+		let letters = LetterList.new(letters);
+		do letters.draw();
+		let gameOver = letters.advance();
 		if ((10 = frameNumber) & (bell > 1)) {
 				let bell = bell - 25;
 				let frameNumber = 1;
 		}
 		let frameNumber = frameNumber + 1;
-		return new_letter;
+		return;
 	}
 
 	method void playGame() {
-		var LetterList letters;
-	  var char key;
-		var int timer;
+	  var char key, currKey;
 		var int old_length;
-		let letters = null;
 		let timer = 0;
+		let key = 0;
+		let currKey = 0;
 
 		while (true) {
-
-			while (key = 0) {
+			while (key = currKey) {
 				let timer = timer + 1;
 				let key = Keyboard.keyPressed();
 				if (timer > bell) {
-					let letters = updateScene(letters);
+					do updateScene();
 					let timer = 0;
 					if (gameOver) {
-						return;
+							return;
 					}
 				}
 				do Sys.wait(3);
@@ -87,20 +86,7 @@ class ClackGame {
 				let letters = letters.sweep(key);
 				let score = score + (old_length - letters.length());
 			}
-
-			// waits for the key to be released
-			while (~(key = 0)) {
-				let timer = timer + 1;
-				let key = Keyboard.keyPressed();
-				if (timer > bell) {
-					let letters = updateScene(letters);
-					let timer = 0;
-					if (gameOver) {
-						return;
-					}
-				}
-				do Sys.wait(3);
-			}
+			let currKey = key;
 		}
 		return;
 	}
