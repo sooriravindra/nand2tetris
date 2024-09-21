@@ -1,7 +1,53 @@
 #! /usr/bin/env python3
 import sys
 import os
+import argparse
 from enum import Enum
+
+optimized = []
+
+def dfs(graph, source, visited):
+    if source in visited:
+        return
+    visited.append(source)
+    for neighbor in graph[source]:
+        dfs(graph, neighbor, visited)
+
+def removeDeadCode(sources):
+    callgraph = {}
+    allfunctions = []
+    # lines = {}
+    for source in sources:
+        with open(source) as f:
+            # lines[source] = []
+            print('optimizing ' + source)
+            for line in f:
+                line = line.strip()
+                # lines[source].append(line)
+                if line.startswith('call '):
+                    caller = allfunctions[-1]
+                    callee = line.split()[1]
+                    callgraph[caller].append(callee)
+                elif line.startswith('function '):
+                    name = line.split()[1]
+                    allfunctions.append(name)
+                    callgraph[name] = []
+
+    called = []
+    dfs(callgraph, 'Sys.init', called)
+
+    print(len(allfunctions))
+    print(len(called))
+    unused_functions = []
+    for function in allfunctions:
+        if not function in called:
+            unused_functions.append(function)
+
+    print("Unused functions list:")
+    for function in unused_functions:
+        print(function)
+
+    return unused_functions
 
 class CommandType(Enum):
     C_ARITHMETIC = 0
@@ -16,11 +62,12 @@ class CommandType(Enum):
 
 class CodeWriter(object):
     def __init__(self, dest):
-        self.f = open(dest, 'x')
+        self.f = open(dest, 'w')
         self.labelnum = -1
         self.currfile = '__Jack__'
-        self.currfunction = '__Jack__.__Jill__'
+        self.currfunction = '__Jill__'
         self.returnlabels = {}
+        self.writeToDest = True
 
         # bootstrap code here
         # NOTE: Comment it out for SimpleFunction, BasicLoop and FibonacciSeries tests
@@ -33,6 +80,12 @@ class CodeWriter(object):
         self.emit('M=D')
         self.writeCall('Sys.init', '0')
 
+        if 'return' in optimized:
+            self.writeOptimizedReturn()
+
+        if 'cond' in optimized:
+            self.writeOptimizedComp()
+
     def setFileName(self, fname):
         self.currfile = os.path.basename(fname)[:-3]
 
@@ -40,10 +93,14 @@ class CodeWriter(object):
         self.f.close()
 
     def emit(self, line):
-        self.f.write(line + '\n')
+        if (self.writeToDest):
+            self.f.write(line + '\n')
 
     def writeComment(self,comment):
         self.emit('//' + comment)
+
+    def shouldWriteToDest(self, write):
+        self.writeToDest = write
 
     def segmentSpecificCode(self, segment, offset):
         asm = ''
@@ -81,8 +138,40 @@ class CodeWriter(object):
         return asm
 
 
+    def writeOptimizedComp(self):
+        for ins in ['eq', 'gt', 'lt']:
+            self.writeLabel('optimized.' + ins)
+            asm  = '@R13\n'
+            asm += 'M=D\n'
+            asm += '@SP\n'
+            asm += 'A=M-1\n'
+            asm += 'D=M\n'
+            asm += 'A=A-1\n'
+            asm += 'D=M-D\n'
+            asm += '@' + self.getLabel('cond.' + ins + '.true') + '\n'
+            if ins == 'eq':
+                asm += 'D;JEQ\n'
+            elif ins == 'lt':
+                asm += 'D;JLT\n'
+            elif ins == 'gt':
+                asm += 'D;JGT\n'
+            asm += 'D=0\n'
+            asm += '@' + self.getLabel('cond.' + ins + '.end') + '\n'
+            asm += '0;JMP\n'
+            asm += '(' + self.getLabel('cond.' + ins + '.true') + ')\n'
+            asm += 'D=-1\n'
+            asm += '(' + self.getLabel('cond.' + ins + '.end') + ')\n'
+            asm += '@SP\n'
+            asm += 'M=M-1\n'
+            asm += 'A=M-1\n'
+            asm += 'M=D\n'
+            asm += '@R13\n'
+            asm += 'A=M\n'
+            asm += '0;JMP\n'
+            self.emit(asm)
 
     def writeArithmetic(self, ins):
+        conds = ['eq', 'lt' , 'gt']
         asm = ''
         if ins == 'add' or ins == 'sub' or ins == 'and' or ins == 'or':
             asm += '@SP\n'
@@ -109,30 +198,38 @@ class CodeWriter(object):
                 asm += 'M=-M\n'
             elif ins == 'not':
                 asm += 'M=!M\n'
-        elif ins =='eq' or ins == 'lt' or ins == 'gt':
+        elif ins in conds:
             self.labelnum += 1
-            asm += '@SP\n'
-            asm += 'A=M-1\n'
-            asm += 'D=M\n'
-            asm += 'A=A-1\n'
-            asm += 'D=M-D\n'
-            asm += '@' + self.getLabel('cond' + str(self.labelnum)+ '.true') + '\n'
-            if ins == 'eq':
-                asm += 'D;JEQ\n'
-            elif ins == 'lt':
-                asm += 'D;JLT\n'
-            elif ins == 'gt':
-                asm += 'D;JGT\n'
-            asm += 'D=0\n'
-            asm += '@' + self.getLabel('cond' + str(self.labelnum)+ '.end') + '\n'
-            asm += '0;JMP\n'
-            asm += '(' + self.getLabel('cond' + str(self.labelnum) + '.true') + ')\n'
-            asm += 'D=-1\n'
-            asm += '(' + self.getLabel('cond' + str(self.labelnum) + '.end') + ')\n'
-            asm += '@SP\n'
-            asm += 'M=M-1\n'
-            asm += 'A=M-1\n'
-            asm += 'M=D'
+            if 'cond' in optimized:
+                retlabel = self.getLabel(ins + '.call.' + str(self.labelnum))
+                asm += '@' + retlabel + '\n'
+                asm += 'D=A\n'
+                asm += '@__Jill__$optimized.' + ins + '\n'
+                asm += '0;JMP\n'
+                asm += '(' + retlabel + ')\n'
+            else:
+                asm += '@SP\n'
+                asm += 'A=M-1\n'
+                asm += 'D=M\n'
+                asm += 'A=A-1\n'
+                asm += 'D=M-D\n'
+                asm += '@' + self.getLabel('cond' + str(self.labelnum)+ '.true') + '\n'
+                if ins == 'eq':
+                    asm += 'D;JEQ\n'
+                elif ins == 'lt':
+                    asm += 'D;JLT\n'
+                elif ins == 'gt':
+                    asm += 'D;JGT\n'
+                asm += 'D=0\n'
+                asm += '@' + self.getLabel('cond' + str(self.labelnum)+ '.end') + '\n'
+                asm += '0;JMP\n'
+                asm += '(' + self.getLabel('cond' + str(self.labelnum) + '.true') + ')\n'
+                asm += 'D=-1\n'
+                asm += '(' + self.getLabel('cond' + str(self.labelnum) + '.end') + ')\n'
+                asm += '@SP\n'
+                asm += 'M=M-1\n'
+                asm += 'A=M-1\n'
+                asm += 'M=D'
         else:
             raise NotImplementedError(ins)
         self.emit(asm)
@@ -240,7 +337,18 @@ class CodeWriter(object):
         asm += '(' + retlabel + ')'
         self.emit(asm)
 
+    def writeOptimizedReturn(self):
+        self.writeLabel('optimized.return')
+        self.writeFullReturn()
+
     def writeReturn(self):
+        if 'return' in optimized:
+            self.emit('@__Jill__$optimized.return')
+            self.emit('0;JMP')
+        else:
+            self.writeFullReturn()
+
+    def writeFullReturn(self):
         asm = ''
 
         # return address = *(LCL-5) 
@@ -365,51 +473,72 @@ class Parser(object):
     def arg2(self):
         return self.words[2]
 
-if len(sys.argv) != 2:
-    print('Usage incorrect')
-    exit(1)
+def generateCode(sources, dest, unused_functions):
+    cw = CodeWriter(dest)
 
-source = sys.argv[1]
-sources = []
+    for s in sources:
+        p = Parser(s)
+        cw.setFileName(s)
 
-if source.endswith('.vm') and os.path.isfile(source):
-    sources = [source]
-    dest   = source[:-3] + '.asm'
-elif os.path.isdir(source):
-    sources = [ os.path.join(source,f) for f in os.listdir(source) if f.endswith('.vm')]
-    dest = source + '.asm'
+        while p.hasMoreLines():
+            p.advance()
+            cw.writeComment(p.currentCmd())
+            cmd = p.commandType()
+            if cmd == CommandType.C_ARITHMETIC:
+                cw.writeArithmetic(p.arg1())
+            elif cmd == CommandType.C_PUSH or cmd == CommandType.C_POP:
+                cw.writePushPop(cmd, p.arg1(), p.arg2())
+            elif cmd == CommandType.C_LABEL:
+                cw.writeLabel(p.arg1())
+            elif cmd == CommandType.C_IF:
+                cw.writeIf(p.arg1())
+            elif cmd == CommandType.C_GOTO:
+                cw.writeGoto(p.arg1())
+            elif cmd == CommandType.C_FUNCTION:
+                if (p.arg1() in unused_functions):
+                    cw.shouldWriteToDest(False)
+                else:
+                    cw.shouldWriteToDest(True)
+                cw.writeFunction(p.arg1(), p.arg2())
+            elif cmd == CommandType.C_RETURN:
+                cw.writeReturn()
+            elif cmd == CommandType.C_CALL:
+                cw.writeCall(p.arg1(),p.arg2())
+            else:
+                raise NotImplementedError(cmd)
+    cw.close()
 
-if len(sources) == 0:
-    print('Expected a directory with some .vm files or a .vm file')
-    exit(1)
+def main():
+    global optimized
+    unused_functions = []
+    dest = None
 
-cw = CodeWriter(dest)
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--optimize', help='A comma seperated list of optimizations to apply such as "deadcode,cond"')
+    ap.add_argument('source', help='A .vm file or a directory containing one more .vm files')
+    args = ap.parse_args()
 
-for s in sources:
-    p = Parser(s)
-    cw.setFileName(s)
+    if args.optimize:
+        optimized = args.optimize.split(',')
+        for each in optimized:
+            print('optimizing ' + each)
 
-    while p.hasMoreLines():
-        p.advance()
-        cw.writeComment(p.currentCmd())
-        cmd = p.commandType()
-        if cmd == CommandType.C_ARITHMETIC:
-            cw.writeArithmetic(p.arg1())
-        elif cmd == CommandType.C_PUSH or cmd == CommandType.C_POP:
-            cw.writePushPop(cmd, p.arg1(), p.arg2())
-        elif cmd == CommandType.C_LABEL:
-            cw.writeLabel(p.arg1())
-        elif cmd == CommandType.C_IF:
-            cw.writeIf(p.arg1())
-        elif cmd == CommandType.C_GOTO:
-            cw.writeGoto(p.arg1())
-        elif cmd == CommandType.C_FUNCTION:
-            cw.writeFunction(p.arg1(), p.arg2())
-        elif cmd == CommandType.C_RETURN:
-            cw.writeReturn()
-        elif cmd == CommandType.C_CALL:
-            cw.writeCall(p.arg1(),p.arg2())
-        else:
-            raise NotImplementedError(cmd)
+    if args.source.endswith('.vm') and os.path.isfile(args.source):
+        sources = [args.source]
+        dest   = args.source[:-3] + '.asm'
+    elif os.path.isdir(args.source):
+        sources = [ os.path.join(args.source,f) for f in os.listdir(args.source) if f.endswith('.vm')]
+        dest = args.source + '.asm'
 
-cw.close()
+    if len(sources) == 0:
+        print('Expected a directory with some .vm files or a .vm file')
+        exit(1)
+
+    if 'deadcode' in optimized:
+        unused_functions = removeDeadCode(sources)
+
+    generateCode(sources, dest, unused_functions)
+
+# Now we begin
+if __name__ == '__main__':
+    main()
