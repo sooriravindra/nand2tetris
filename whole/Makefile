@@ -6,6 +6,7 @@ OSFILES := $(shell find $(OSDIR) -name '*.jack')
 HACKFILES := $(BUILDDIR)/Clack.hack $(BUILDDIR)/Pong.hack
 
 .PHONY: all clean check
+.SECONDARY:
 
 $(BUILDDIR): $(SOURCES) $(OSFILES)
 	mkdir -p 	$@
@@ -16,6 +17,7 @@ $(BUILDDIR)/%/Main.vm: $(BUILDDIR)
 	./compilers/compiler.py $(dir $@)
 
 $(BUILDDIR)/%.asm: $(BUILDDIR)/%/Main.vm
+	./compilers/vmoptimizer.py $(@:%.asm=%)
 	./compilers/translator.py $(@:%.asm=%)
 
 $(BUILDDIR)/%.hack: $(BUILDDIR)/%.asm
