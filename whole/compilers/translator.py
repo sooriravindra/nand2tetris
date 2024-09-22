@@ -78,13 +78,17 @@ class CodeWriter(object):
         self.emit('D=A')
         self.emit('@SP')
         self.emit('M=D')
-        self.writeCall('Sys.init', '0')
+        self.emit('@Sys.init')
+        self.emit('0;JMP')
 
         if 'return' in optimized:
             self.writeOptimizedReturn()
 
         if 'cond' in optimized:
             self.writeOptimizedComp()
+
+        if 'call' in optimized:
+            self.writeOptimizedCall()
 
     def setFileName(self, fname):
         self.currfile = os.path.basename(fname)[:-3]
@@ -296,10 +300,72 @@ class CodeWriter(object):
             self.returnlabels[fname] = 0
         return fname + '$ret.'+ str(self.returnlabels[fname])
 
+    def writeOptimizedCall(self):
+        self.writeLabel('optimized.call')
+        # push return-label (D)
+        asm  = '@SP\n'
+        asm += 'A=M\n'
+        asm += 'M=D\n'
+        asm += '@SP\n'
+        asm += 'M=M+1'
+        self.emit(asm)
+
+        # push LCL
+        self.writePushPop(CommandType.C_PUSH, 'internal', '1')
+
+        # push ARG
+        self.writePushPop(CommandType.C_PUSH, 'internal', '2')
+
+        # push THIS
+        self.writePushPop(CommandType.C_PUSH, 'internal', '3')
+
+        # push THAT
+        self.writePushPop(CommandType.C_PUSH, 'internal', '4')
+
+        # ARG = SP - 5 - nargs
+        self.writePushPop(CommandType.C_PUSH, 'internal', '0')
+        self.writePushPop(CommandType.C_PUSH, 'constant', '5')
+        self.writePushPop(CommandType.C_PUSH, 'internal', '14') # push nargs (R14)
+        self.writeArithmetic('add')
+        self.writeArithmetic('sub')
+        self.writePushPop(CommandType.C_POP, 'internal', '2')
+
+        # LCL = SP
+        asm  = '@SP\n'
+        asm += 'D=M\n'
+        asm += '@LCL\n'
+        asm += 'M=D\n'
+
+        # go to function (R13)
+        asm += '@R13\n'
+        asm += 'A=M\n'
+        asm += '0;JMP\n'
+
+        self.emit(asm)
+
     def writeCall(self,fname, nargs):
         retlabel = self.getReturnLabel()
-        asm =''
 
+        if 'call' in optimized:
+            # R13 <- Function
+            # R14 <- Nargs
+            # D   <- return label
+            asm = ''
+            asm += '@'+ self.getFunctionEntry(fname) + '\n'
+            asm += 'D=A\n'
+            asm += '@R13\n'
+            asm += 'M=D\n'
+            asm += '@'+ str(nargs) +'\n'
+            asm += 'D=A\n'
+            asm += '@R14\n'
+            asm += 'M=D\n'
+            asm += '@'+ str(retlabel) +'\n'
+            asm += 'D=A\n'
+            asm += '@__Jill__$optimized.call\n'
+            asm += '0;JMP\n'
+            asm += '(' + retlabel + ')'
+            self.emit(asm)
+            return
         # push return-label
         self.writePushPop(CommandType.C_PUSH, 'constant', retlabel)
 
@@ -324,7 +390,7 @@ class CodeWriter(object):
         self.writePushPop(CommandType.C_POP, 'internal', '2')
 
         # LCL = SP
-        asm += '@SP\n'
+        asm  = '@SP\n'
         asm += 'D=M\n'
         asm += '@LCL\n'
         asm += 'M=D\n'

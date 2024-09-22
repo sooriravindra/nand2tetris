@@ -17,7 +17,7 @@ $(BUILDDIR)/%/Main.vm: $(BUILDDIR)
 	./compilers/compiler.py $(dir $@)
 
 $(BUILDDIR)/%.asm: $(BUILDDIR)/%/Main.vm
-	./compilers/translator.py $(@:%.asm=%) --optimize deadcode
+	./compilers/translator.py $(@:%.asm=%) --optimize deadcode,return,call,cond
 
 $(BUILDDIR)/%.hack: $(BUILDDIR)/%.asm
 	./compilers/assembler.py $(@:%.hack=%.asm) > $@
