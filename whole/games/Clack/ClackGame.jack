@@ -16,7 +16,7 @@ class ClackGame {
 		let clackCol = 22;
 		let gameOver = false;
 		let frameNumber = 1;
-		let bell = 300;
+		let bell = 50;
 		let letters = null;
 		return this;
 	}
@@ -53,7 +53,7 @@ class ClackGame {
 		do letters.draw();
 		let gameOver = letters.advance();
 		if ((10 = frameNumber) & (bell > 1)) {
-				let bell = bell - 25;
+				let bell = bell - 5;
 				let frameNumber = 1;
 		}
 		let frameNumber = frameNumber + 1;
