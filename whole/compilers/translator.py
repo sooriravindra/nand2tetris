@@ -36,8 +36,6 @@ def removeDeadCode(sources):
     called = []
     dfs(callgraph, 'Sys.init', called)
 
-    print(len(allfunctions))
-    print(len(called))
     unused_functions = []
     for function in allfunctions:
         if not function in called:

@@ -10,7 +10,7 @@ HACKFILES := $(BUILDDIR)/Clack.hack $(BUILDDIR)/Pong.hack
 
 $(BUILDDIR): $(SOURCES) $(OSFILES)
 	mkdir -p 	$@
-	cp -r $(SOURCEDIR)/* $@
+	ls -1d	$(SOURCEDIR)/*/ | sed 's/[/]$$//g' | xargs -I{} sh -c "cp -r {} $@"
 	ls -1 $@ | xargs -I{} sh -c "cp $(OSFILES) $@/{}"
 
 $(BUILDDIR)/%/Main.vm: $(BUILDDIR)
